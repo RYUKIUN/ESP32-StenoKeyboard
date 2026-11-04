@@ -28,11 +28,7 @@ The computer only receives normal keystrokes, so it behaves like any Bluetooth k
 
 ## Demo
 
-
-
-https://github.com/user-attachments/assets/7cbd7cd2-4b20-41c7-9783-141b55d1f275
-
-
+<img width="800" height="800" alt="1000257680-ezgif com-video-to-gif-converter (1)" src="https://github.com/user-attachments/assets/20c9ff4a-8b7a-4254-be29-8b0699686d43" />
 
 
 You can try the engine on your PC without any hardware (needs `gcc` and Python 3):
