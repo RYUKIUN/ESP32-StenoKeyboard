@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS "main.c"
     INCLUDE_DIRS "."
-    REQUIRES mpr121 keypad ble_hid hid_kbd steno_app steno_core nvs_flash bt
+    REQUIRES mpr121 keypad ble_hid hid_kbd steno_app steno_core nvs_flash
 )
 
 # Make `idf.py flash` also write the dictionary into the "dict" partition.

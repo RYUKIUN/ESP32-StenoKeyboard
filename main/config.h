@@ -11,16 +11,6 @@
 #include "steno_core.h"
 
 /* ========================================================================
- * 0. SUPPLY CURRENT BOOST  (for charger / power-bank modules that switch off at low load)
- *
- * Some modules cut the output ~30 s after power-on if the board draws less than ~50..70 mA.
- * Two cheap ways to draw more: CPU at 240 MHz (sdkconfig: CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240)
- * and BLE radio at maximum TX power (below). Set to 0 to use the stack's default power.
- * ====================================================================== */
-
-#define CFG_BLE_MAX_TX_POWER  1    /* +9 dBm on advertising and connection */
-
-/* ========================================================================
  * 1. BLUETOOTH KEYBOARD  (CHANGE: name if you like)
  * ====================================================================== */
 

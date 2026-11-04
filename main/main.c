@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "ble_hid.h"
-#include "esp_bt.h"
 #include "config.h"
 #include "esp_log.h"
 #include "hid_kbd.h"
@@ -85,12 +84,6 @@ void app_main(void)
         .clear_bonds_on_boot = CFG_BLE_CLEAR_BONDS_ON_BOOT,
     };
     ESP_ERROR_CHECK(ble_hid_start(&ble_cfg));
-#if CFG_BLE_MAX_TX_POWER
-    /* Max radio power = more supply current (see config.h section 0). Controller is up now. */
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_CONN_HDL0, ESP_PWR_LVL_P9);
-#endif
 
     /* --- HID report queue --- */
     const hid_kbd_config_t hid_cfg = {

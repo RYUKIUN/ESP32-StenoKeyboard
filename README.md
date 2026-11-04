@@ -1,117 +1,208 @@
-# Stenokeyboard (ESP32 + 2x MPR121 → Bluetooth keyboard)
+# Steno Keyboard
 
-steno ทั้งหมด (จับ chord, พจนานุกรม Plover, orthography, fingerspelling, ตัวเลข, undo/retro, คำสั่งลัด) ทำงานในตัว ESP32
-ฝั่ง PC แค่ pair Bluetooth แล้วมองเห็นเป็นคีย์บอร์ดทั่วไป ไม่ต้องลงโปรแกรมใดๆ
+A stenography keyboard that does the steno translation by itself. Two touch pads, an ESP32, and about 3,900 lines of C. The PC doesn't need Plover or any driver: it just sees a normal Bluetooth keyboard.
 
-> สำคัญ: เครื่องที่ผมใช้เขียนโค้ดไม่มี ESP-IDF จึง **ยังไม่ได้ build firmware ส่วน ESP32 จริง** ส่วน steno engine (ภาษา C ล้วน)
-> ทดสอบเทียบกับ Plover ตัวจริงบนเครื่องแล้ว ~4,000 ลำดับสโตรกสุ่ม ผลตรงกัน ส่วน BLE/HID/MPR121 ต้องลองกับฮาร์ดแวร์จริง
-> ถ้า build ไม่ผ่านหรือพฤติกรรมแปลก ส่ง log กลับมาได้เลย
+[![engine-tests](../../actions/workflows/host-tests.yml/badge.svg)](../../actions/workflows/host-tests.yml)
+![status](https://img.shields.io/badge/status-working%20prototype-orange)
+![platform](https://img.shields.io/badge/platform-ESP32-red)
+![framework](https://img.shields.io/badge/framework-ESP--IDF-blue)
+![license](https://img.shields.io/badge/license-GPL--2.0--or--later-green)
 
-## โครงสร้าง (แตก zip ลงโฟลเดอร์โปรเจกต์ ESP-IDF ได้เลย)
+<!-- photo goes here: docs/images/keyboard.jpg -->
+
+---
+
+## What it does
+
+Steno lets you write a whole word with one chord (several keys pressed together), and people reach 200+ words per minute with it. The usual tool for this is [Plover](https://www.openstenoproject.org/plover/), but Plover has to be installed on the computer you type on. That rules out school computers, locked-down work PCs and phones.
+
+So I moved the whole thing into the keyboard:
+
+- 24 capacitive touch pads (two MPR121 chips, one per hand) are read 200 times a second.
+- A chord counts as one stroke, and the stroke ends when every pad is released, like Plover.
+- The ESP32 looks the stroke up in a Plover dictionary stored in its own flash, applies the spelling rules, and types the result over Bluetooth LE HID.
+
+The computer only receives normal keystrokes, so it behaves like any Bluetooth keyboard. I've only tried it on Windows so far.
+
+## Demo
+
+> Video: _coming soon_
+
+You can try the engine on your PC without any hardware (needs `gcc` and Python 3):
+
+```console
+$ python3 tools/hosttest/demo.py TH- KWEUBG PWROUPB TPOBGS
+this quick brown fox
+
+$ python3 tools/hosttest/demo.py TKOG -G         # dog + suffix key, orthography kicks in
+dogging
+
+$ python3 tools/hosttest/demo.py KAT TKOG '*'    # * undoes the last stroke
+cat
+```
+
+Run it with no arguments to type strokes one per line.
+
+## Features
+
+- Plover-compatible engine running on the ESP32: lookup, translation, formatting, undo
+- Plover's `main.json` dictionary (147,424 entries) packed into 2.2 MB and read straight from flash, nothing copied into RAM
+- Orthography, so `dog` + `-G` gives `dogging`
+- Fingerspelling, numbers, capitalisation, punctuation
+- Retro commands (toggle asterisk, delete space, insert space, repeat last stroke)
+- Keyboard shortcuts as strokes: copy, paste, cut, select all, undo, arrows, Alt+Tab and so on. Your own go in `tools/user.json`
+- BLE HID keyboard with bonding: pair once, it reconnects by itself
+- Suspend and resume steno (`PHRO*F` / `PHRO*PB`) so you can type normally
+- All the settings (pins, key map, sensor tuning, typing speed, Bluetooth name) are in `main/config.h`
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["24 touch pads<br/>2x MPR121"] -->|"I2C, 200 Hz"| B["keypad<br/>24-bit bitmap"]
+    B --> C["chord detector<br/>stroke ends when<br/>all keys released"]
+    C -->|"23-bit stroke"| D["steno_core<br/>lookup, translate,<br/>orthography, undo"]
+    E[("dict.bin<br/>flash partition<br/>2.2 MB")] --> D
+    D -->|"text / backspaces / combos"| F["hid_kbd<br/>paced HID reports"]
+    F --> G["ble_hid<br/>NimBLE, bonded"]
+    G -->|"Bluetooth LE"| H["Any computer"]
+```
+
+| Component | What it does |
+|---|---|
+| `components/mpr121` | I2C driver for the MPR121 touch chip, with tunable thresholds and filters |
+| `components/keypad` | Reads both chips and merges them into one 24-bit bitmap |
+| `components/steno_app` | Chord detector, plus the task that feeds the engine and maps the dictionary |
+| `components/steno_core` | The steno engine. Plain C with no ESP-IDF in it, so it also builds on a PC |
+| `components/hid_kbd` | Turns text, backspaces and key combos into HID reports at a safe pace |
+| `components/ble_hid` | BLE HID keyboard on NimBLE (Just Works pairing, bonds saved in NVS) |
+| `tools/convert_dict.py` | Builds `dict.bin` from Plover JSON dictionaries |
+
+### Design decisions
+
+**The engine doesn't know about the hardware.** `steno_core` only talks to the outside through callbacks (read some bytes, send some text). Because of that the same files run on the ESP32 and on a PC, which is how I could test it properly.
+
+**Custom dictionary format.** Plover's `main.json` is about 4 MB of JSON, far too heavy to parse on an ESP32. `convert_dict.py` sorts the entries, front-codes them and compresses them with LZ4 in blocks of about 4 KB, with a small directory in front. A lookup is a binary search over the directory plus decompressing one block (a few blocks are cached). A 16-bit xor filter answers "is this a real word?" for the orthography rules, so the wordlist isn't stored as text.
+
+**Dictionary stays in flash.** It has its own partition and is memory-mapped, so the ESP32's RAM is left for Bluetooth and the engine.
+
+**Two I2C buses.** Both MPR121 boards use the same address (0x5A), so each one gets its own bus instead of fiddling with address jumpers. It also keeps the two hands independent.
+
+**Paced typing.** A long word is a lot of HID reports. `hid_kbd` queues them and waits a few milliseconds between each, because the host can drop characters if they arrive too fast. The delay is one value in `config.h`.
+
+## Testing
+
+The engine is tested differently from the drivers, since it runs on a PC.
+
+- `tools/hosttest/diff_test.py` feeds random stroke sequences (dictionary entries, meta commands, suffix keys, undo, retro commands) to both real Plover and this engine and compares the text.
+- `tools/hosttest/smoke_test.py` checks 9 fixed behaviours without needing Plover. GitHub Actions runs it on every push, built with AddressSanitizer and UndefinedBehaviorSanitizer.
+
+```bash
+sh tools/hosttest/build.sh                  # build the engine for your PC
+python3 tools/hosttest/smoke_test.py        # 9 checks
+
+# against real Plover
+pip install plover lz4
+python3 tools/hosttest/diff_test.py tools/hosttest/hostt 1 300
+```
+
+The drivers (touch, Bluetooth) need the real board, so these tests don't cover them.
+
+## Hardware
+
+| Part | Notes |
+|---|---|
+| ESP32 dev board | original ESP32, 4 MB flash |
+| 2x MPR121 breakout | 12-channel capacitive touch, I2C |
+| 24 touch pads | two 4x3 grids, one per hand |
+| Enclosure | 3D printed |
+
+Power is over USB only. There's no battery yet.
+
+| Signal | GPIO |
+|---|---|
+| Right hand MPR121, SDA / SCL (I2C0) | 27 / 26 |
+| Left hand MPR121, SDA / SCL (I2C1) | 19 / 5 |
+
+Pad layout:
 
 ```
-├── main/config.h        <- ตั้งค่าทั้งหมด (ขา I2C, ชื่อ Bluetooth, key map, ค่าจูนเซนเซอร์, ความเร็วพิมพ์)
-├── main/main.c          <- ประกอบ component เข้าด้วยกัน
-├── components/
-│   ├── mpr121/ keypad/  <- ไดรเวอร์ MPR121 + อ่านปุ่ม (จาก phase 1)
-│   ├── steno_core/      <- engine แบบพกพา (ไม่พึ่ง ESP-IDF): translator, formatter, orthography, dictionary reader
-│   ├── steno_app/       <- chord detector + task ที่ป้อนสโตรกเข้า engine + mmap พจนานุกรมจาก flash
-│   ├── hid_kbd/         <- แปลงข้อความ/คีย์ลัดเป็น HID report + คิวส่งแบบหน่วงเวลา
-│   └── ble_hid/         <- BLE HID keyboard (NimBLE, bonding, Just Works)
-├── dict/dict.bin        <- พจนานุกรมที่แปลงแล้ว (สร้างสำเร็จรูปมาให้)
-├── tools/               <- convert_dict.py (สร้าง dict.bin), user.json (คำสั่งของคุณ), assets/ (main.json ของ Plover), hosttest/ (ชุดทดสอบเทียบ Plover)
-├── partitions.csv  sdkconfig.defaults  CMakeLists.txt
+ LEFT HAND                RIGHT HAND
+ S  T  P  H               F  P  L  T
+ S  K  W  R               R  B  G  S
+ #  *  A  O               D  Z  E  U
 ```
 
-## ก่อน flash ต้องเช็กอะไรบ้าง
+Both `S` pads on the left give the same key. Pins and the pad map can be changed in `main/config.h`.
 
-1. **ขนาด flash = 4 MB** (ตั้งไว้ใน `sdkconfig.defaults` และ `partitions.csv`) ถ้าบอร์ดคุณใหญ่กว่า (8/16 MB) ใช้ได้เหมือนเดิม
-   แต่ถ้าเล็กกว่า 4 MB ใช้ไม่ได้ ตรวจด้วย `esptool.py flash_id` (หรือ `idf.py flash` จะแจ้งตอนเริ่ม)
-2. **ขา I2C และ address** ใน `main/config.h` หัวข้อ 2 (ค่าเริ่มต้นเหมือน phase 1):
-   - โมดูลแรก = I2C0, SDA GPIO21, SCL GPIO22 = **มือขวา**
-   - โมดูลสอง = I2C1, SDA GPIO18, SCL GPIO19 = **มือซ้าย**
-3. **Key map** (หัวข้อ 5 ของ config.h) ตั้งตามที่คุณยืนยัน:
+## Build and flash
 
-   | มือขวา (โมดูลแรก) | | | |
-   |---|---|---|---|
-   | e0 F | e1 P | e2 L | e3 T |
-   | e4 R | e5 B | e6 G | e7 S |
-   | e8 D | e9 Z | e10 E | e11 U |
-
-   | มือซ้าย (โมดูลสอง, เลขเรียงกลับด้าน) | | | |
-   |---|---|---|---|
-   | e11 S | e10 T | e9 P | e8 H |
-   | e7 S | e6 K | e5 W | e4 R |
-   | e3 # | e2 * | e1 A | e0 O |
-
-   ถ้า wiring จริงต่างไป แก้เฉพาะตาราง `CFG_KEYMAP`
-4. **ค่าจูนเซนเซอร์** (touch/release threshold ฯลฯ) ใช้ค่าจาก phase 1 ที่ทดสอบแล้ว ถ้าปรับไว้ให้คัดลอกค่าเดิมมาใส่หัวข้อ 4
-5. **ความเร็วพิมพ์**: `CFG_HID_REPORT_INTERVAL_MS` (ค่าเริ่มต้น 8 ms ≈ 60 ตัวอักษร/วินาที) ถ้า Windows ทำตัวอักษรหล่น/เพี้ยนให้เพิ่มค่า
-
-## Build และ flash
+You need [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/). I built it with v6.1 and haven't tried other versions.
 
 ```bash
 . $IDF_PATH/export.sh
-cd <โฟลเดอร์โปรเจกต์>
 idf.py set-target esp32
 idf.py build flash monitor
 ```
 
-`idf.py flash` จะเขียน `dict/dict.bin` ลง partition `dict` ให้อัตโนมัติ (ผ่าน `main/CMakeLists.txt`)
-ถ้า build แจ้งว่าแอปใหญ่เกิน partition `factory` (1.25 MB) ให้บอกผม จะย้ายขอบ partition ให้ ซึ่งแก้ได้ใน `partitions.csv` (dict ใช้ ~2.2 MB จาก 2.7 MB ที่จอง)
+`idf.py flash` writes `dict/dict.bin` to the `dict` partition as well.
 
-เขียนเฉพาะพจนานุกรมใหม่โดยไม่ build ใหม่ (หลังแก้ `tools/user.json`):
-
-```bash
-pip install lz4
-python tools/convert_dict.py                    # สร้าง dict/dict.bin ใหม่ (user.json > commands.json > main.json)
-python $IDF_PATH/components/partition_table/parttool.py --port COMx write_partition --partition-name dict --input dict/dict.bin
-```
-
-หรือ `idf.py flash` ก็เขียนใหม่ให้เหมือนกัน
-
-## Pair กับ Windows
-
-1. เปิดบอร์ดด้วย USB (log จะขึ้น `advertising as "Steno Keyboard"`)
-2. Settings → Bluetooth & devices → Add device → Bluetooth → เลือก **Steno Keyboard** (Just Works ไม่ต้องใส่รหัส)
-3. หลัง pair ครั้งแรก ต่อใหม่อัตโนมัติทุกครั้งที่เสียบไฟ (keys เก็บใน NVS)
-4. ถ้าลบอุปกรณ์ใน Windows แล้ว pair ใหม่ ESP32 ยอมรับเองโดยไม่ต้องล้างอะไร ถ้ายังติดปัญหา ตั้ง `CFG_BLE_CLEAR_BONDS_ON_BOOT 1` flash ครั้งเดียว แล้วตั้งกลับเป็น 0
-
-**ข้อควรรู้เรื่อง layout**: คีย์บอร์ดส่ง "ตำแหน่งปุ่ม" แบบ US ดังนั้นภาษาที่ใช้พิมพ์ใน Windows ต้องเป็น **English (US)** ตอนใช้ steno
-ถ้าสลับเป็นภาษาไทยอยู่ ตัวอักษรจะออกเป็นอักษรไทยตามตำแหน่งปุ่ม
-
-## ฟีเจอร์ steno
-
-- พจนานุกรม Plover main.json (~147k รายการ) + commands.json + `tools/user.json`
-- **Orthography** (กฎ -ing/-ed/-s/-er ฯลฯ และ suffix keys `-Z -D -S -G`) ตามกฎและ wordlist ของ Plover
-- **Fingerspelling** (`A*`, `PW*`, ... และตัวพิมพ์ใหญ่ `A*P`...), **ตัวเลข** (`#` + คีย์, เลขต่อกัน)
-- **Undo**: `*` ลบสโตรกล่าสุด (ย้อนได้ตาม `CFG_STENO_UNDO_LEVELS`)
-- **Retro**: `R*FPB` สลับ `*` ของสโตรกก่อนหน้า, `TK*FS` ลบช่องว่างระหว่างสองคำก่อนหน้า, `TK*PLT` เติมช่องว่าง, `R*PT` ทำซ้ำสโตรกล่าสุด
-- **เปิด/ปิด steno**: `PHRO*F` = suspend, `PHRO*PB` = resume, `PHROLG` = toggle (ตามพจนานุกรม Plover) ตอนปิดจะไม่พิมพ์อะไรเลย (ยกเว้นคำสั่งเปิดกลับ)
-- **คำสั่งคีย์บอร์ด** (เพิ่มใน `tools/user.json`): copy `KO*P`, cut `K*UT`, paste `PA*PS`, select all `S*EL`, undo `*UPB`, redo `R*EUPB`, save `SA*EUFP`, find `TP*EUPBD` (แก้/เพิ่มได้ที่ `tools/user.json` แล้วรัน convert_dict.py) และคำสั่งใน commands.json ของ Plover เช่น ลูกศร, Home/End, Alt+Tab (`TA*BT`), Enter (`SKW-BGS`) ฯลฯ
-- ตัวอักษรที่ไม่ใช่ ASCII (เช่น ø, ™, “ ”) ถูกแปลงเป็นตัวใกล้เคียง (`(TM)`, `"`) หรือตัดรายการทิ้ง (4 รายการ) เพราะคีย์บอร์ด US พิมพ์ได้เฉพาะ ASCII
-
-### สิ่งที่ยังไม่รองรับ (ไม่ได้อยู่ในพจนานุกรม main ของ Plover)
-
-prefix strokes, `{=conditional}`, `{MODE:...}`, `{:macro}` ที่ผู้ใช้เขียนเอง, ตัวอักษรนอก ASCII
-
-หมายเหตุ: stroke จะถูกส่งเมื่อ **ปล่อยปุ่มทุกปุ่มแล้ว** (แบบ Plover ปกติ)
-
-## รูปแบบไฟล์พจนานุกรม (dict.bin, เวอร์ชัน 1)
-
-header 64 ไบต์ (`STNO`) → ไดเรกทอรี block (20 ไบต์/รายการ) → block ละ ~4 KB แบบ front-coded + LZ4 → wordlist filter (xor filter 16-bit)
-ใช้สำหรับค้นหาด้วย binary search และเช็กคำในกฎ orthography ขนาดรวม ~2.2 MB
-
-## ทดสอบ engine บนคอมพิวเตอร์ (ไม่ต้องใช้บอร์ด)
+**Changing the dictionary** (for example after editing `tools/user.json`):
 
 ```bash
-pip install plover lz4   # ต้องมี Plover ไว้เทียบ
-gcc -std=c11 -O1 -fsanitize=address,undefined -Icomponents/steno_core/include -Icomponents/steno_core \
-    components/steno_core/steno_*.c tools/hosttest/host_main.c -o hostt
-cd tools && python hosttest/diff_test.py ../hostt 1 300
+pip install -r tools/requirements.txt
+python tools/convert_dict.py        # priority: user.json > commands.json > main.json
+idf.py flash
 ```
 
-## ลิขสิทธิ์
+**Pairing:** power the board and add **Steno Keyboard** in your Bluetooth settings. No PIN. After the first time it reconnects on its own. The keyboard sends US key positions, so set the PC's input language to English (US) while using steno.
 
-`tools/assets/main.json`, `commands.json` และ `american_english_words.txt` มาจาก Plover (GPLv2+) กฎ orthography และ logic ของ engine พอร์ตมาจาก Plover
-ดังนั้นโปรเจกต์นี้ควรเผยแพร่ภายใต้ GPLv2 หรือใหม่กว่าหากจะแจกจ่าย
+Flash layout (4 MB):
+
+| Partition | Size | Content |
+|---|---|---|
+| `factory` | 1.25 MB | firmware |
+| `dict` | 2.7 MB | `dict.bin` (2.2 MB used) |
+| `nvs` | 24 KB | Bluetooth bonds |
+
+## Troubleshooting
+
+- **Phantom touches or stuck keys.** Don't touch the pads while the board boots, the MPR121 learns its baseline at start-up. Unused electrodes should be masked off in `CFG_PADx_ELECTRODE_MASK`.
+- **I2C errors.** Some MPR121 boards have weak or no pull-ups. The internal ones are on by default; if it still fails, add 4.7k resistors from SDA and SCL to 3V3 on each bus.
+- **Too sensitive or not sensitive enough.** Change `CFG_MPR_TOUCH_THRESHOLD` / `CFG_MPR_RELEASE_THRESHOLD` (12 / 6 to start). Set `CFG_TUNE_LOG_PERIOD_MS` to see the raw values in the serial log.
+- **Missing or garbled letters.** Raise `CFG_HID_REPORT_INTERVAL_MS` (8 ms by default).
+- **Won't reconnect after removing it in Windows.** The board accepts re-pairing by itself. If not, set `CFG_BLE_CLEAR_BONDS_ON_BOOT` to 1 for one boot.
+
+## Limitations
+
+- Not supported: prefix strokes, `{=conditional}`, `{MODE:...}`, user macros. Plover's default dictionaries don't need them.
+- ASCII only. A US keyboard can't type anything else, so four dictionary entries are dropped and a few symbols (like `™`) turn into ASCII (`(TM)`).
+- The dictionary can only be changed by re-flashing.
+- Bluetooth only, no USB HID yet. USB powered only, no battery.
+- Only tested on Windows.
+
+## Roadmap
+
+- [ ] Prefix strokes and conditional entries
+- [ ] USB HID mode next to Bluetooth
+- [ ] Update the dictionary over Bluetooth
+- [ ] Battery
+
+## Project layout
+
+```
+main/                 app entry point and config.h
+components/
+  mpr121/  keypad/    touch sensing
+  steno_app/          chord detector and engine task
+  steno_core/         steno engine (also builds on a PC)
+  hid_kbd/  ble_hid/  keyboard output over Bluetooth LE
+dict/dict.bin         prebuilt dictionary
+tools/                dictionary converter, PC test tools, Plover files
+```
+
+## License and credits
+
+GPL-2.0-or-later, see [LICENSE](LICENSE).
+
+The dictionary (`tools/assets/main.json`, `commands.json`), the English wordlist, the orthography rules and the translation logic come from, or are ported from, [Plover](https://github.com/openstenoproject/plover) (GPL-2.0-or-later). That's why this project uses the same license. Thanks to the Open Steno Project.

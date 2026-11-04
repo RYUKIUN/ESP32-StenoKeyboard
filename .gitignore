@@ -1,0 +1,18 @@
+# ESP-IDF build output and generated config
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# Editor / tooling caches
+.cache/
+.vscode/
+.idea/
+compile_commands.json
+
+# Host test binary and Python caches
+hostt
+tools/hosttest/hostt
+__pycache__/
+*.pyc
