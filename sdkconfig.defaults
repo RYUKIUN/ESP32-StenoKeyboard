@@ -1,0 +1,37 @@
+# Target: original ESP32 (run `idf.py set-target esp32` once)
+
+# --- Partition table (4 MB flash, dictionary partition) ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# --- Smaller firmware (app partition is 1.25 MB) ---
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# --- Bluetooth: BLE only, NimBLE host, one bonded keyboard link ---
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=n
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+# Pairing (Just Works + bonding) and storing the keys in NVS so the PC reconnects after power-off
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_MAX_BONDS=4
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=64
+
+# --- FreeRTOS tick: 1 ms ---
+CONFIG_FREERTOS_HZ=1000
+
+# --- Logging ---
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# --- 240 MHz CPU: more supply current (more supply current for charger modules, see config.h section 0) ---
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y

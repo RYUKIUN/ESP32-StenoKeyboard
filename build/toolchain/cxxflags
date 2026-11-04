@@ -1,0 +1,7 @@
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+"-specs=D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/specs/picolibc.specs"
+-fno-rtti

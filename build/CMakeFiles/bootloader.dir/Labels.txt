@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/CMakeFiles/bootloader
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/CMakeFiles/bootloader.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/CMakeFiles/bootloader-complete.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
