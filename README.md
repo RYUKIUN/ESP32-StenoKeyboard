@@ -9,6 +9,8 @@ A stenography keyboard that does the steno translation by itself. Two touch pads
 ![license](https://img.shields.io/badge/license-GPL--2.0--or--later-green)
 
 <!-- photo goes here: docs/images/keyboard.jpg -->
+<img width="4096" height="3072" alt="1000257675 (2)" src="https://github.com/user-attachments/assets/3b44f214-657f-4b02-bb86-d86535caa29b" />
+
 
 ---
 
@@ -26,7 +28,12 @@ The computer only receives normal keystrokes, so it behaves like any Bluetooth k
 
 ## Demo
 
-> Video: _coming soon_
+
+
+https://github.com/user-attachments/assets/7cbd7cd2-4b20-41c7-9783-141b55d1f275
+
+
+
 
 You can try the engine on your PC without any hardware (needs `gcc` and Python 3):
 
