@@ -6,6 +6,7 @@
 #include "host/ble_hs.h"
 #include "host/ble_store.h"
 #include "host/util/util.h"
+#include "nimble/nimble_npl.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "services/gap/ble_svc_gap.h"
@@ -44,6 +45,16 @@ static uint16_t s_input_handle;
 static volatile uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
 static volatile bool s_subscribed, s_encrypted;
 static bool s_started;
+
+/* Link watchdog. A link that stays up but never becomes usable (not encrypted, or the host never
+ * enabled notifications) used to sit there silently and swallow every key. Now the board asks the
+ * host to encrypt and, if nothing helps, drops the link so the host reconnects from scratch. */
+#define WATCHDOG_PERIOD_MS  2000
+#define STALL_LIMIT_TICKS   15          /* 15 x 2 s = 30 s */
+static struct ble_npl_callout s_watchdog;
+static uint8_t s_stall;                 /* watchdog ticks the link has been up but not ready */
+static uint8_t s_enc_fail;              /* encryption failures in a row */
+static bool s_last_ready;
 
 enum { ID_REPORT_MAP, ID_HID_INFO, ID_CTRL_POINT, ID_PROTO_MODE, ID_INPUT, ID_OUTPUT, ID_REF_IN, ID_REF_OUT,
        ID_PNP, ID_MANUF, ID_BATTERY };
@@ -135,6 +146,39 @@ static const struct ble_gatt_svc_def GATT_SVCS[] = {
 /* ------------------------------------------------------------------ */
 static void start_advertising(void);
 
+/* Log whenever the link flips between usable and not usable, with the reason it is not usable. */
+static void note_state(const char *why)
+{
+    bool r = ble_hid_ready();
+    if (r == s_last_ready) return;
+    s_last_ready = r;
+    ESP_LOGI(TAG, "link %s (%s): connected=%d encrypted=%d notifications=%d", r ? "READY" : "not ready", why,
+             s_conn != BLE_HS_CONN_HANDLE_NONE, s_encrypted, s_subscribed);
+}
+
+static void watchdog_cb(struct ble_npl_event *ev)
+{
+    (void)ev;
+    if (s_conn == BLE_HS_CONN_HANDLE_NONE) return;      /* link is gone: do not re-arm */
+
+    if (ble_hid_ready()) {
+        s_stall = 0;
+    } else {
+        s_stall++;
+        if (!s_encrypted && (s_stall % 2) == 0) {       /* every 4 s: ask the host to encrypt again */
+            int rc = ble_gap_security_initiate(s_conn);
+            ESP_LOGW(TAG, "link is not encrypted yet, asking the host to secure it (rc=%d)", rc);
+        }
+        if (s_stall >= STALL_LIMIT_TICKS) {
+            ESP_LOGW(TAG, "link stuck for %d s (encrypted=%d notifications=%d), dropping it so the host reconnects",
+                     STALL_LIMIT_TICKS * WATCHDOG_PERIOD_MS / 1000, s_encrypted, s_subscribed);
+            s_stall = 0;
+            ble_gap_terminate(s_conn, BLE_ERR_REM_USER_CONN_TERM);
+        }
+    }
+    ble_npl_callout_reset(&s_watchdog, ble_npl_time_ms_to_ticks32(WATCHDOG_PERIOD_MS));
+}
+
 static int gap_event_cb(struct ble_gap_event *event, void *arg)
 {
     (void)arg;
@@ -144,21 +188,30 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
             s_conn = event->connect.conn_handle;
             s_subscribed = false;
             s_encrypted = false;
+            s_stall = 0;
             ESP_LOGI(TAG, "connected");
             struct ble_gap_upd_params p = {
                 .itvl_min = s_cfg.conn_itvl_min, .itvl_max = s_cfg.conn_itvl_max,
                 .latency = s_cfg.conn_latency, .supervision_timeout = s_cfg.conn_timeout,
             };
             ble_gap_update_params(s_conn, &p);
+            /* Do not wait for the host to start encryption: a bonded host that was just reconnected
+             * sometimes never does, and the keyboard would stay connected but silent. */
+            int rc = ble_gap_security_initiate(s_conn);
+            if (rc && rc != BLE_HS_EALREADY) ESP_LOGW(TAG, "security_initiate rc=%d", rc);
+            ble_npl_callout_reset(&s_watchdog, ble_npl_time_ms_to_ticks32(WATCHDOG_PERIOD_MS));
+            note_state("connect");
         } else {
             start_advertising();
         }
         break;
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "disconnected, reason=%d", event->disconnect.reason);
+        ble_npl_callout_stop(&s_watchdog);
         s_conn = BLE_HS_CONN_HANDLE_NONE;
         s_subscribed = false;
         s_encrypted = false;
+        note_state("disconnect");
         start_advertising();
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -167,11 +220,30 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_ENC_CHANGE:
         s_encrypted = (event->enc_change.status == 0);
         ESP_LOGI(TAG, "encryption %s (status=%d)", s_encrypted ? "on" : "off", event->enc_change.status);
+        if (s_encrypted) {
+            s_enc_fail = 0;
+        } else {
+            /* The host and the board disagree about the pairing key (for example the board no longer has
+             * this host's bond). Before, the link just stayed up without encryption and every key was
+             * dropped. Drop the link; after a second failure in a row also forget this host's bond so
+             * the next pairing starts clean. */
+            if (++s_enc_fail >= 2) {
+                struct ble_gap_conn_desc d;
+                if (ble_gap_conn_find(event->enc_change.conn_handle, &d) == 0) {
+                    ble_store_util_delete_peer(&d.peer_id_addr);
+                    ESP_LOGW(TAG, "encryption failed twice, forgot the stored bond of this host");
+                }
+                s_enc_fail = 0;
+            }
+            ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+        }
+        note_state("encryption");
         break;
     case BLE_GAP_EVENT_SUBSCRIBE:
         if (event->subscribe.attr_handle == s_input_handle) {
             s_subscribed = event->subscribe.cur_notify;
             ESP_LOGI(TAG, "input report notifications %s", s_subscribed ? "enabled" : "disabled");
+            note_state("subscribe");
         }
         break;
     case BLE_GAP_EVENT_REPEAT_PAIRING: {
@@ -224,12 +296,26 @@ static void start_advertising(void)
 
 static void on_reset(int reason) { ESP_LOGE(TAG, "host reset, reason=%d", reason); }
 
+/* When the bond store is full NimBLE silently removes the oldest bond. The host that owned it still
+ * has its key, so it shows "connected" but can never encrypt again. At least say so in the log. */
+static int store_status_cb(struct ble_store_status_event *event, void *arg)
+{
+    if (event->event_code == BLE_STORE_EVENT_OVERFLOW) {
+        ESP_LOGW(TAG, "bond store full (object type %d): the oldest bond is being removed", event->overflow.obj_type);
+    }
+    return ble_store_util_status_rr(event, arg);
+}
+
 static void on_sync(void)
 {
     int rc = ble_hs_util_ensure_addr(0);
     if (rc) { ESP_LOGE(TAG, "ensure_addr rc=%d", rc); return; }
     rc = ble_hs_id_infer_auto(0, &s_own_addr_type);
     if (rc) { ESP_LOGE(TAG, "infer_auto rc=%d", rc); return; }
+    int bonds = 0;
+    if (ble_store_util_count(BLE_STORE_OBJ_TYPE_PEER_SEC, &bonds) == 0) {
+        ESP_LOGI(TAG, "%d bonded host(s) in storage", bonds);
+    }
     start_advertising();
 }
 
@@ -254,9 +340,11 @@ esp_err_t ble_hid_start(const ble_hid_config_t *cfg)
     esp_err_t err = nimble_port_init();
     if (err != ESP_OK) { ESP_LOGE(TAG, "nimble_port_init: %s", esp_err_to_name(err)); return err; }
 
+    ble_npl_callout_init(&s_watchdog, nimble_port_get_dflt_eventq(), watchdog_cb, NULL);
+
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;
-    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+    ble_hs_cfg.store_status_cb = store_status_cb;
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;   /* Just Works */
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_mitm = 0;

@@ -24,7 +24,10 @@ CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
 CONFIG_BT_NIMBLE_SM_LEGACY=y
 CONFIG_BT_NIMBLE_SM_SC=y
 CONFIG_BT_NIMBLE_NVS_PERSIST=y
-CONFIG_BT_NIMBLE_MAX_BONDS=4
+# Room for several hosts (PC, phone, tablet) plus their re-pairings. When this is full NimBLE drops the oldest
+# bond and that host can no longer encrypt. Each bond can hold up to 2 CCCDs.
+CONFIG_BT_NIMBLE_MAX_BONDS=10
+CONFIG_BT_NIMBLE_MAX_CCCDS=20
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=64
 
 # --- FreeRTOS tick: 1 ms ---

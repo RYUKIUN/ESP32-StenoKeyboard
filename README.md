@@ -9,6 +9,8 @@ A stenography keyboard that does the steno translation by itself. Two touch pads
 ![license](https://img.shields.io/badge/license-GPL--2.0--or--later-green)
 
 <!-- photo goes here: docs/images/keyboard.jpg -->
+<img width="4096" height="3072" alt="1000257675 (2)" src="https://github.com/user-attachments/assets/3b44f214-657f-4b02-bb86-d86535caa29b" />
+
 
 ---
 
@@ -26,7 +28,8 @@ The computer only receives normal keystrokes, so it behaves like any Bluetooth k
 
 ## Demo
 
-> Video: _coming soon_
+<img width="800" height="800" alt="1000257680-ezgif com-video-to-gif-converter (1)" src="https://github.com/user-attachments/assets/20c9ff4a-8b7a-4254-be29-8b0699686d43" />
+
 
 You can try the engine on your PC without any hardware (needs `gcc` and Python 3):
 
@@ -172,6 +175,7 @@ Flash layout (4 MB):
 - **Too sensitive or not sensitive enough.** Change `CFG_MPR_TOUCH_THRESHOLD` / `CFG_MPR_RELEASE_THRESHOLD` (12 / 6 to start). Set `CFG_TUNE_LOG_PERIOD_MS` to see the raw values in the serial log.
 - **Missing or garbled letters.** Raise `CFG_HID_REPORT_INTERVAL_MS` (8 ms by default).
 - **Won't reconnect after removing it in Windows.** The board accepts re-pairing by itself. If not, set `CFG_BLE_CLEAR_BONDS_ON_BOOT` to 1 for one boot.
+- **Connected but nothing is typed after power-cycling the board.** The host and the board no longer agree on the pairing key. The board now asks the host to encrypt, drops a link that stays unusable for 30 s, and the serial log says why (`link not ready`, `encryption off (status=...)`, `bond store full`). The board remembers up to 10 hosts; beyond that the oldest one is forgotten and has to be removed and paired again on that device.
 
 ## Limitations
 

@@ -32,7 +32,14 @@ static void pacing_task(void *arg)
     for (;;) {
         if (xQueueReceive(s_q, &r, portMAX_DELAY) != pdTRUE) continue;
         if (s_cfg.ready && !s_cfg.ready(s_cfg.ctx)) {
-            xQueueReset(s_q);           /* nobody listening: forget the backlog */
+            /* nobody listening: forget the backlog (and say so, this used to happen silently) */
+            static TickType_t last_log;
+            TickType_t now = xTaskGetTickCount();
+            if (last_log == 0 || now - last_log > pdMS_TO_TICKS(2000)) {
+                last_log = now;
+                ESP_LOGW(TAG, "link not ready, dropped %u report(s)", (unsigned)uxQueueMessagesWaiting(s_q) + 1);
+            }
+            xQueueReset(s_q);
             continue;
         }
         uint8_t rpt[8] = { r.mods, 0 };
