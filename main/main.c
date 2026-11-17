@@ -13,6 +13,7 @@
 #include "hid_kbd.h"
 #include "keypad.h"
 #include "nvs_flash.h"
+#include "power_load.h"
 #include "steno_app.h"
 
 static const char *TAG = "main";
@@ -71,6 +72,16 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(err);
 
+#if CFG_LOAD_ENABLE
+    /* --- Extra load so the power module does not switch the board off (see config.h section 6) --- */
+    const power_load_config_t load_cfg = {
+        .cores = CFG_LOAD_CORES,
+        .duty_percent = CFG_LOAD_DUTY_PERCENT,
+        .period_ms = CFG_LOAD_PERIOD_MS,
+    };
+    if (power_load_start(&load_cfg) != ESP_OK) ESP_LOGW(TAG, "extra power load not started");
+#endif
+
     /* --- Bluetooth HID keyboard --- */
     const ble_hid_config_t ble_cfg = {
         .device_name = CFG_BLE_DEVICE_NAME,
@@ -84,6 +95,7 @@ void app_main(void)
         .conn_latency = CFG_BLE_CONN_LATENCY,
         .conn_timeout = CFG_BLE_CONN_TIMEOUT,
         .clear_bonds_on_boot = CFG_BLE_CLEAR_BONDS_ON_BOOT,
+        .tx_power_dbm = CFG_BLE_TX_POWER_DBM,
     };
     ESP_ERROR_CHECK(ble_hid_start(&ble_cfg));
 

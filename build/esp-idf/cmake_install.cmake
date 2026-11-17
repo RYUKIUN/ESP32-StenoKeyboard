@@ -774,6 +774,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/steno_core/cmake_install.cmake")
 endif()
 

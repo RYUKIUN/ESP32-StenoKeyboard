@@ -208,6 +208,7 @@ $<TARGET_FILE:idf::keypad>
 $<TARGET_FILE:__idf_mpr121>
 $<TARGET_FILE:idf::ble_hid>
 $<TARGET_FILE:idf::hid_kbd>
+$<TARGET_FILE:idf::power_load>
 $<TARGET_FILE:idf::steno_core>
 $<TARGET_FILE:idf::steno_app>
 $<TARGET_FILE:__idf_steno_core>
@@ -215,4 +216,5 @@ $<TARGET_FILE:idf::main>
 $<TARGET_FILE:__idf_keypad>
 $<TARGET_FILE:__idf_ble_hid>
 $<TARGET_FILE:__idf_hid_kbd>
+$<TARGET_FILE:__idf_power_load>
 $<TARGET_FILE:__idf_steno_app>

@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "esp_bt.h"
 #include "esp_log.h"
 #include "host/ble_hs.h"
 #include "host/ble_store.h"
@@ -294,6 +295,23 @@ static void start_advertising(void)
     ESP_LOGI(TAG, "advertising as \"%s\"", s_name);
 }
 
+/* Radio output power. Without this the ESP32 stays at its default of +3 dBm; the maximum is +9 dBm. */
+static void set_tx_power(int dbm)
+{
+    if (dbm < -12) dbm = -12;
+    if (dbm > 9) dbm = 9;
+    const esp_power_level_t level = (esp_power_level_t)((dbm + 12) / 3);    /* N12=0, N9=1 ... P9=7 */
+    /* DEFAULT covers every type that is not set explicitly (scanning, other connection handles). */
+    esp_err_t e1 = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, level);
+    esp_err_t e2 = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, level);
+    esp_err_t e3 = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_CONN_HDL0, level);
+    if (e1 || e2 || e3) {
+        ESP_LOGW(TAG, "tx power set failed (default=%d adv=%d conn=%d)", e1, e2, e3);
+    } else {
+        ESP_LOGI(TAG, "tx power %d dBm", (int)level * 3 - 12);
+    }
+}
+
 static void on_reset(int reason) { ESP_LOGE(TAG, "host reset, reason=%d", reason); }
 
 /* When the bond store is full NimBLE silently removes the oldest bond. The host that owned it still
@@ -340,6 +358,7 @@ esp_err_t ble_hid_start(const ble_hid_config_t *cfg)
     esp_err_t err = nimble_port_init();
     if (err != ESP_OK) { ESP_LOGE(TAG, "nimble_port_init: %s", esp_err_to_name(err)); return err; }
 
+    set_tx_power(cfg->tx_power_dbm);
     ble_npl_callout_init(&s_watchdog, nimble_port_get_dflt_eventq(), watchdog_cb, NULL);
 
     ble_hs_cfg.reset_cb = on_reset;

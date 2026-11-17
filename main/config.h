@@ -32,6 +32,10 @@
 #define CFG_BLE_CONN_LATENCY  0
 #define CFG_BLE_CONN_TIMEOUT  400    /* units of 10 ms */
 
+/* Radio output power in dBm: -12, -9, -6, -3, 0, 3, 6 or 9. The ESP32 default is +3; 9 is the maximum
+ * (longest range, a little more current). */
+#define CFG_BLE_TX_POWER_DBM 9
+
 /* Set to 1 for ONE boot to erase all stored Bluetooth pairings, then set back to 0 and re-flash.
  * (Normally not needed: if you remove the keyboard in Windows, the ESP32 accepts re-pairing by itself.) */
 #define CFG_BLE_CLEAR_BONDS_ON_BOOT 0
@@ -183,3 +187,24 @@
     STENO_KEY_O_L, STENO_KEY_A_L, STENO_KEY_STAR, STENO_KEY_NUM, \
     STENO_KEY_R_L, STENO_KEY_W_L, STENO_KEY_K_L, STENO_KEY_S_L, \
     STENO_KEY_H_L, STENO_KEY_P_L, STENO_KEY_T_L, STENO_KEY_S_L }
+
+
+/* ========================================================================
+ * 6. EXTRA POWER LOAD  (CHANGE: only if your power bank / module switches the board off)
+ *
+ * Some USB power modules cut the output when the load is too small to keep them awake (this
+ * one needs roughly 50-60 mA). With CFG_LOAD_ENABLE 1 the board keeps its CPU busy on purpose.
+ * Typing is not affected: the load runs at the lowest priority.
+ *
+ * The real current depends on your board and supply, so measure it with a USB power meter:
+ * too low -> raise CFG_LOAD_DUTY_PERCENT, too high -> lower it. Set CFG_LOAD_ENABLE to 0 to turn
+ * it off. If the module still switches off, add a resistor between 5V and GND instead
+ * (100 ohm, 0.5 W draws about 50 mA).
+ * ====================================================================== */
+#define CFG_LOAD_ENABLE        1
+/* 1 = busy on core 0 only, 2 = busy on both cores (about twice the extra current). */
+#define CFG_LOAD_CORES         2
+/* Share of each cycle the CPU is busy, per core: 1..90. */
+#define CFG_LOAD_DUTY_PERCENT  70
+/* Length of one busy+rest cycle in ms (4..100). */
+#define CFG_LOAD_PERIOD_MS     10

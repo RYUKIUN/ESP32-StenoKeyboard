@@ -1238,6 +1238,13 @@ D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/hid_kbd/CMakeFiles/install.dir
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/hid_kbd/CMakeFiles/install/local.dir
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/hid_kbd/CMakeFiles/install/strip.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/__idf_power_load.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/edit_cache.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/rebuild_cache.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/list_install_components.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/install.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/install/local.dir
+D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/power_load/CMakeFiles/install/strip.dir
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/steno_core/CMakeFiles/__idf_steno_core.dir
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/steno_core/CMakeFiles/edit_cache.dir
 D:/PlatformIO/ESP_project_codex/S3-nextgen-jpeg(ESP-IDF)/stenokeyboard/build/esp-idf/steno_core/CMakeFiles/rebuild_cache.dir

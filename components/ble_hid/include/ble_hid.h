@@ -25,6 +25,7 @@ typedef struct {
     uint16_t conn_latency;
     uint16_t conn_timeout;          /* units of 10 ms */
     bool clear_bonds_on_boot;       /* erase all stored pairings at startup */
+    int8_t tx_power_dbm;            /* radio output power: -12, -9, -6, -3, 0, 3, 6 or 9 dBm (ESP32 default is +3) */
 } ble_hid_config_t;
 
 /* NVS must already be initialised. Starts the stack and begins advertising. */

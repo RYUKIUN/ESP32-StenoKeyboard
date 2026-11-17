@@ -176,6 +176,7 @@ Flash layout (4 MB):
 - **Missing or garbled letters.** Raise `CFG_HID_REPORT_INTERVAL_MS` (8 ms by default).
 - **Won't reconnect after removing it in Windows.** The board accepts re-pairing by itself. If not, set `CFG_BLE_CLEAR_BONDS_ON_BOOT` to 1 for one boot.
 - **Connected but nothing is typed after power-cycling the board.** The host and the board no longer agree on the pairing key. The board now asks the host to encrypt, drops a link that stays unusable for 30 s, and the serial log says why (`link not ready`, `encryption off (status=...)`, `bond store full`). The board remembers up to 10 hosts; beyond that the oldest one is forgotten and has to be removed and paired again on that device.
+- **The power bank or module switches the board off.** The board alone draws less than some modules need to stay awake. `CFG_LOAD_ENABLE` (section 6 of `config.h`) keeps the CPU busy on purpose at the lowest priority, so typing is not affected. Measure the current with a USB power meter and tune `CFG_LOAD_DUTY_PERCENT`; set `CFG_LOAD_ENABLE` to 0 to turn it off. If that is not enough, a 100 ohm 0.5 W resistor from 5V to GND draws about 50 mA.
 
 ## Limitations
 
